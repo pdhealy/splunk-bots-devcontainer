@@ -10,19 +10,122 @@ Lastly, both the BOTSv1 and BOTSv2 environments have a walkthrough app to assist
 
 Happy Hunting!
 
-## Using the Docker Compose File
+## Launching a BOTS environment
 
-Edit the `docker-compose.yml` file and change the value in `SPLUNK_PASSWORD=` to your preferred password the default is `changeme`. The username to login is `admin` for all containers.
+Docker Desktop (or a compatible Docker Engine), Docker Compose v2, and the required
+BOTS application archives are prerequisites. Configure the initial administrator password
+in `config/.env` before starting a service; the username is always `admin`.
 
-Use the `docker-compose up` or `docker compose up` commands to bring up all containers (this may take a while).
+BOTSv2 and BOTSv3 also require locally supplied dataset archives in `data/`. Download
+the archive indicated by its dataset guide, verify its published checksum, and save it
+as `data/botsv2_data_set_attack_only.tgz` or `data/botsv3_data_set.tgz`, respectively.
+The archives are bind mounted read-only and are never downloaded by the Splunk container.
 
-To bring up just the BOTSv1 container run `docker-compose up -d bots1` this brings up the container in a detached mode so you can continue to use your terminal for other things. Then navigate to `http://localhost:8000` on your local machine or on the IP of the system running it and port 8000 to access from another system.
+The project is configured for one BOTS service at a time. This avoids port, memory, and
+dataset contention. BOTS v1, v2, and v3 are respectively available at ports 8000, 8020,
+and 8030.
 
-For BOTSv2 run `docker-compose up -d bots2` This one might take a while as the dataset it has to download is about 3.4GB. Then navigate to `http://localhost:8020` on your local machine or on the IP of the system running it and port 8020 to access from another system. Some of the references in the walkthrough app are meant to use Splunk Enterprise Security, which is a premium (read pay for) app. While this will not really impact the ability to work through the labs, it can be a little confusing if you are not aware of this fact.
+The app archive bind mounts default to `./apps/botsv1`, `./apps/botsv2`, and
+`./apps/botsv3`. Set `BOTS_APPS_ROOT` to use a different parent directory while keeping
+the dataset-specific subdirectories, for example:
 
-For BOTSv3 run `docker-compose up -d bots3` Then navigate to `http://localhost:8030` on your local machine or on the IP of the system running it and port 8030 to access from another system.
+```sh
+BOTS_APPS_ROOT=/data/splunk-apps ./scripts/bots-compose bots1 up -d
+```
 
-To bring everything back down just run `docker-compose down`
+### VS Code Dev Container (primary)
+
+Set `BOTS_SERVICE` before opening the folder in VS Code, then use **Dev Containers:
+Reopen in Container**:
+
+```sh
+BOTS_SERVICE=bots1 code .
+```
+
+Use `bots2` or `bots3` to select the other datasets. The Dev Container validates this
+value before creating containers, starts a development workspace and only the selected
+Splunk service, and forwards all three possible UI ports.
+
+The equivalent CLI launch is:
+
+```sh
+BOTS_SERVICE=bots2 ./scripts/devcontainer-up
+```
+
+### Docker Compose (secondary)
+
+Use the wrapper to validate the selected service and run only that service:
+
+```sh
+./scripts/bots-compose bots1 up -d
+./scripts/bots-compose bots1 logs -f
+./scripts/bots-compose bots1 down
+```
+
+The wrapper's `down` command stops and removes only the selected service. Standard
+Compose commands remain available, for example `docker compose up -d bots3`.
+
+To start only `bots3` directly with Docker Compose and set its platform for this command:
+
+```sh
+SPLUNK_PLATFORM=linux/amd64 docker compose up -d bots3
+```
+
+### Apple Silicon and other non-amd64 hosts
+
+`splunk/splunk:8.2.3` is an x86-64 image. Native amd64 hosts should leave
+`SPLUNK_PLATFORM` unset. On Apple Silicon, explicitly enable Docker emulation:
+
+```sh
+SPLUNK_PLATFORM=linux/amd64 ./scripts/bots-compose bots3 up -d
+SPLUNK_PLATFORM=linux/amd64 BOTS_SERVICE=bots3 ./scripts/devcontainer-up
+```
+
+For direct Compose usage without the wrapper, use the command above.
+
+### Validation
+
+Run the static configuration checks with:
+
+```sh
+node --test tests/config.test.mjs
+```
+
+On a host with a reachable Docker daemon, run the complete sequential Compose and Dev
+Container launch matrix with:
+
+```sh
+./scripts/test-launch-matrix
+```
+
+The matrix runs all six launch combinations: `bots1`, `bots2`, and `bots3` through
+Docker Compose, then the Dev Container CLI. It waits for each Splunk UI before stopping
+and removing that service, then continues to the next target.
+
+To verify a single Docker Compose target manually:
+
+```sh
+./scripts/bots-compose bots1 up -d
+./scripts/bots-compose bots1 logs -f
+./scripts/bots-compose bots1 down
+```
+
+Replace `bots1` with `bots2` or `bots3` as needed. The live checks require Docker to be
+installed and its daemon to be reachable; `docker info` must succeed before running the
+matrix.
+
+### Configuration layout
+
+- `config/.env` contains shared `SPLUNK_START_ARGS` and `SPLUNK_PASSWORD`.
+- `config/botsv1.env`, `config/botsv2.env`, and `config/botsv3.env` contain the
+  corresponding `SPLUNK_APPS_URL` manifest.
+- `docker-compose.amd64.yml` is the explicit amd64 override used by
+  `scripts/bots-compose`; direct Compose and Dev Container launches use the
+  `SPLUNK_PLATFORM` interpolation in `docker-compose.yml`.
+
+Splunk initialization and BOTS dataset ingestion can take a long time. Wait until the
+selected UI responds before treating startup as failed. Use the wrapper's `logs` command
+to diagnose readiness or ingestion issues.
 
 ## BOTSv1
 

@@ -1,0 +1,14 @@
+#!/usr/bin/env sh
+set -eu
+
+service=${BOTS_SERVICE:-bots1}
+case "$service" in
+    bots1|bots2|bots3) ;;
+    *)
+        printf '%s\n' "BOTS_SERVICE must be bots1, bots2, or bots3; received: $service" >&2
+        exit 64
+        ;;
+esac
+
+export BOTS_SERVICE=$service
+exec devcontainer up --workspace-folder "$(pwd)" "$@"

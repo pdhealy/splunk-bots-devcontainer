@@ -83,8 +83,21 @@ Container launch matrix with:
 ./scripts/test-launch-matrix
 ```
 
-The matrix waits for the selected Splunk UI, then stops and removes the service before
-testing the next target.
+The matrix runs all six launch combinations: `bots1`, `bots2`, and `bots3` through
+Docker Compose, then the Dev Container CLI. It waits for each Splunk UI before stopping
+and removing that service, then continues to the next target.
+
+To verify a single Docker Compose target manually:
+
+```sh
+./scripts/bots-compose bots1 up -d
+./scripts/bots-compose bots1 logs -f
+./scripts/bots-compose bots1 down
+```
+
+Replace `bots1` with `bots2` or `bots3` as needed. The live checks require Docker to be
+installed and its daemon to be reachable; `docker info` must succeed before running the
+matrix.
 
 ### Configuration layout
 

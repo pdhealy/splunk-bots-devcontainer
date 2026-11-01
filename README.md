@@ -10,19 +10,76 @@ Lastly, both the BOTSv1 and BOTSv2 environments have a walkthrough app to assist
 
 Happy Hunting!
 
-## Using the Docker Compose File
+## Launching a BOTS environment
 
-Edit the `docker-compose.yml` file and change the value in `SPLUNK_PASSWORD=` to your preferred password the default is `changeme`. The username to login is `admin` for all containers.
+Docker Desktop (or a compatible Docker Engine), Docker Compose v2, and the required
+BOTS application archives are prerequisites. Configure the initial administrator password
+in `config/.env` before starting a service; the username is always `admin`.
 
-Use the `docker-compose up` or `docker compose up` commands to bring up all containers (this may take a while).
+The project is configured for one BOTS service at a time. This avoids port, memory, and
+dataset contention. BOTS v1, v2, and v3 are respectively available at ports 8000, 8020,
+and 8030.
 
-To bring up just the BOTSv1 container run `docker-compose up -d bots1` this brings up the container in a detached mode so you can continue to use your terminal for other things. Then navigate to `http://localhost:8000` on your local machine or on the IP of the system running it and port 8000 to access from another system.
+### VS Code Dev Container (primary)
 
-For BOTSv2 run `docker-compose up -d bots2` This one might take a while as the dataset it has to download is about 3.4GB. Then navigate to `http://localhost:8020` on your local machine or on the IP of the system running it and port 8020 to access from another system. Some of the references in the walkthrough app are meant to use Splunk Enterprise Security, which is a premium (read pay for) app. While this will not really impact the ability to work through the labs, it can be a little confusing if you are not aware of this fact.
+Set `BOTS_SERVICE` before opening the folder in VS Code, then use **Dev Containers:
+Reopen in Container**:
 
-For BOTSv3 run `docker-compose up -d bots3` Then navigate to `http://localhost:8030` on your local machine or on the IP of the system running it and port 8030 to access from another system.
+```sh
+BOTS_SERVICE=bots1 code .
+```
 
-To bring everything back down just run `docker-compose down`
+Use `bots2` or `bots3` to select the other datasets. The Dev Container validates this
+value before creating containers, starts a development workspace and only the selected
+Splunk service, and forwards all three possible UI ports.
+
+The equivalent CLI launch is:
+
+```sh
+BOTS_SERVICE=bots2 ./scripts/devcontainer-up
+```
+
+### Docker Compose (secondary)
+
+Use the wrapper to validate the selected service and run only that service:
+
+```sh
+./scripts/bots-compose bots1 up -d
+./scripts/bots-compose bots1 logs -f
+./scripts/bots-compose bots1 down
+```
+
+The wrapper's `down` command stops and removes only the selected service. Standard
+Compose commands remain available, for example `docker compose up -d bots3`.
+
+### Apple Silicon and other non-amd64 hosts
+
+`splunk/splunk:8.2.3` is an x86-64 image. Native amd64 hosts should leave
+`SPLUNK_PLATFORM` unset. On Apple Silicon, explicitly enable Docker emulation:
+
+```sh
+SPLUNK_PLATFORM=linux/amd64 ./scripts/bots-compose bots3 up -d
+SPLUNK_PLATFORM=linux/amd64 BOTS_SERVICE=bots3 ./scripts/devcontainer-up
+```
+
+The same override works with direct Compose:
+
+```sh
+SPLUNK_PLATFORM=linux/amd64 docker compose up -d bots3
+```
+
+### Configuration layout
+
+- `config/.env` contains shared `SPLUNK_START_ARGS` and `SPLUNK_PASSWORD`.
+- `config/botsv1.env`, `config/botsv2.env`, and `config/botsv3.env` contain the
+  corresponding `SPLUNK_APPS_URL` manifest.
+- `docker-compose.amd64.yml` is the explicit amd64 override used by
+  `scripts/bots-compose`; direct Compose and Dev Container launches use the
+  `SPLUNK_PLATFORM` interpolation in `docker-compose.yml`.
+
+Splunk initialization and BOTS dataset ingestion can take a long time. Wait until the
+selected UI responds before treating startup as failed. Use the wrapper's `logs` command
+to diagnose readiness or ingestion issues.
 
 ## BOTSv1
 

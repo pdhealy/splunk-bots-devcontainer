@@ -5,22 +5,31 @@ import test from 'node:test';
 
 const services = {
   bots1: { manifest: 'botsv1', port: '8000' },
-  bots2: { manifest: 'botsv2', port: '8020' },
-  bots3: { manifest: 'botsv3', port: '8030' },
+  bots2: { manifest: 'botsv2', port: '8020', dataset: '/data/botsv2_data_set_attack_only.tgz' },
+  bots3: { manifest: 'botsv3', port: '8030', dataset: '/data/botsv3_data_set.tgz' },
 };
 
 const compose = readFileSync('docker-compose.yml', 'utf8');
 
-test('each BOTS service uses its dedicated app manifest and selectable platform', () => {
-  for (const [service, { manifest, port }] of Object.entries(services)) {
+test('BOTS services share image and platform defaults and use configurable app paths', () => {
+  assert.match(compose, /^x-splunk-defaults: &splunk-defaults\n  image: splunk\/splunk:8\.2\.3\n  platform: "\$\{SPLUNK_PLATFORM:-\}"/m);
+
+  for (const [service, { manifest, port, dataset }] of Object.entries(services)) {
     const section = compose.split(new RegExp(`^  ${service}:`, 'm'))[1].split(/^  \S/m)[0];
-    assert.match(section, /platform: "\$\{SPLUNK_PLATFORM:-\}"/);
+    assert.match(section, /<<: \*splunk-defaults/);
     assert.match(section, new RegExp(`- config/${manifest}\\.env`));
     assert.match(section, new RegExp(`- "${port}:8000"`));
+    assert.match(section, new RegExp(`- "\\$\\{BOTS_APPS_ROOT:-\\./apps\\}/${manifest}:/tmp/apps"`));
 
     const appList = readFileSync(`config/${manifest}.env`, 'utf8').trim();
     assert.match(appList, /^SPLUNK_APPS_URL=\/tmp\/apps\//);
     assert.ok(appList.split(',').length > 1, `${manifest} must contain multiple apps`);
+
+    if (dataset) {
+      assert.match(section, /- "\.\/data:\/data:ro"/);
+      assert.ok(appList.endsWith(dataset), `${manifest} must use a local dataset archive`);
+      assert.doesNotMatch(appList, /https?:\/\//);
+    }
   }
 });
 

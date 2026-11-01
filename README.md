@@ -16,9 +16,22 @@ Docker Desktop (or a compatible Docker Engine), Docker Compose v2, and the requi
 BOTS application archives are prerequisites. Configure the initial administrator password
 in `config/.env` before starting a service; the username is always `admin`.
 
+BOTSv2 and BOTSv3 also require locally supplied dataset archives in `data/`. Download
+the archive indicated by its dataset guide, verify its published checksum, and save it
+as `data/botsv2_data_set_attack_only.tgz` or `data/botsv3_data_set.tgz`, respectively.
+The archives are bind mounted read-only and are never downloaded by the Splunk container.
+
 The project is configured for one BOTS service at a time. This avoids port, memory, and
 dataset contention. BOTS v1, v2, and v3 are respectively available at ports 8000, 8020,
 and 8030.
+
+The app archive bind mounts default to `./apps/botsv1`, `./apps/botsv2`, and
+`./apps/botsv3`. Set `BOTS_APPS_ROOT` to use a different parent directory while keeping
+the dataset-specific subdirectories, for example:
+
+```sh
+BOTS_APPS_ROOT=/data/splunk-apps ./scripts/bots-compose bots1 up -d
+```
 
 ### VS Code Dev Container (primary)
 
@@ -52,6 +65,12 @@ Use the wrapper to validate the selected service and run only that service:
 The wrapper's `down` command stops and removes only the selected service. Standard
 Compose commands remain available, for example `docker compose up -d bots3`.
 
+To start only `bots3` directly with Docker Compose and set its platform for this command:
+
+```sh
+SPLUNK_PLATFORM=linux/amd64 docker compose up -d bots3
+```
+
 ### Apple Silicon and other non-amd64 hosts
 
 `splunk/splunk:8.2.3` is an x86-64 image. Native amd64 hosts should leave
@@ -62,11 +81,7 @@ SPLUNK_PLATFORM=linux/amd64 ./scripts/bots-compose bots3 up -d
 SPLUNK_PLATFORM=linux/amd64 BOTS_SERVICE=bots3 ./scripts/devcontainer-up
 ```
 
-The same override works with direct Compose:
-
-```sh
-SPLUNK_PLATFORM=linux/amd64 docker compose up -d bots3
-```
+For direct Compose usage without the wrapper, use the command above.
 
 ### Validation
 

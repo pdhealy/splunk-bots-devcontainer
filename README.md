@@ -68,6 +68,24 @@ The same override works with direct Compose:
 SPLUNK_PLATFORM=linux/amd64 docker compose up -d bots3
 ```
 
+### Validation
+
+Run the static configuration checks with:
+
+```sh
+node --test tests/config.test.mjs
+```
+
+On a host with a reachable Docker daemon, run the complete sequential Compose and Dev
+Container launch matrix with:
+
+```sh
+./scripts/test-launch-matrix
+```
+
+The matrix waits for the selected Splunk UI, then stops and removes the service before
+testing the next target.
+
 ### Configuration layout
 
 - `config/.env` contains shared `SPLUNK_START_ARGS` and `SPLUNK_PASSWORD`.

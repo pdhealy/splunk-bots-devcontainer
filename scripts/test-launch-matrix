@@ -1,0 +1,57 @@
+#!/usr/bin/env sh
+set -eu
+
+root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+cd "$root"
+
+for command in docker devcontainer curl; do
+    command -v "$command" >/dev/null 2>&1 || {
+        printf '%s\n' "Missing required command: $command" >&2
+        exit 127
+    }
+done
+
+docker info >/dev/null 2>&1 || {
+    printf '%s\n' "A reachable Docker daemon is required to run the launch matrix." >&2
+    exit 1
+}
+
+port_for() {
+    case "$1" in
+        bots1) printf '%s\n' 8000 ;;
+        bots2) printf '%s\n' 8020 ;;
+        bots3) printf '%s\n' 8030 ;;
+    esac
+}
+
+cleanup() {
+    docker compose rm --force --stop workspace "$1" >/dev/null 2>&1 || true
+}
+
+wait_for_splunk() {
+    port=$(port_for "$1")
+    attempt=1
+    while [ "$attempt" -le 120 ]; do
+        if curl --fail --silent --show-error --output /dev/null --max-time 10 "http://localhost:$port/en-US/account/login"; then
+            return 0
+        fi
+        sleep 10
+        attempt=$((attempt + 1))
+    done
+    printf '%s\n' "Timed out waiting for $1 on port $port." >&2
+    return 1
+}
+
+for service in bots1 bots2 bots3; do
+    trap 'cleanup "$service"' EXIT HUP INT TERM
+
+    docker compose up --detach "$service"
+    wait_for_splunk "$service"
+    cleanup "$service"
+
+    BOTS_SERVICE=$service devcontainer up --workspace-folder "$root"
+    wait_for_splunk "$service"
+    cleanup "$service"
+
+    trap - EXIT HUP INT TERM
+done

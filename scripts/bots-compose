@@ -1,0 +1,42 @@
+#!/usr/bin/env sh
+set -eu
+
+usage() {
+    printf '%s\n' "Usage: SPLUNK_PLATFORM=linux/amd64 $0 {bots1|bots2|bots3} {up|down|logs|ps|config} [arguments...]" >&2
+    exit 64
+}
+
+[ "$#" -ge 2 ] || usage
+
+service=$1
+command=$2
+shift 2
+
+case "$service" in
+    bots1|bots2|bots3) ;;
+    *) printf '%s\n' "Unknown BOTS service: $service" >&2; usage ;;
+esac
+
+case "$command" in
+    up|down|logs|ps|config) ;;
+    *) printf '%s\n' "Unsupported Docker Compose command: $command" >&2; usage ;;
+esac
+
+compose_files="-f docker-compose.yml"
+case "${SPLUNK_PLATFORM:-}" in
+    "")
+        ;;
+    linux/amd64)
+        compose_files="$compose_files -f docker-compose.amd64.yml"
+        ;;
+    *)
+        printf '%s\n' "Unsupported SPLUNK_PLATFORM: ${SPLUNK_PLATFORM}. Use linux/amd64 or leave it unset." >&2
+        exit 64
+        ;;
+esac
+
+if [ "$command" = "down" ]; then
+    exec docker compose $compose_files rm --force --stop "$@" "$service"
+fi
+
+exec docker compose $compose_files "$command" "$@" "$service"

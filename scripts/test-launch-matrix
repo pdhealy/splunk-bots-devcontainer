@@ -4,7 +4,7 @@ set -eu
 root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 cd "$root"
 
-for command in docker devcontainer curl; do
+for command in docker devcontainer; do
     command -v "$command" >/dev/null 2>&1 || {
         printf '%s\n' "Missing required command: $command" >&2
         exit 127
@@ -16,42 +16,43 @@ docker info >/dev/null 2>&1 || {
     exit 1
 }
 
-port_for() {
-    case "$1" in
-        bots1) printf '%s\n' 8000 ;;
-        bots2) printf '%s\n' 8020 ;;
-        bots3) printf '%s\n' 8030 ;;
-    esac
-}
+artifacts_dir=$(mktemp -d "${TMPDIR:-/tmp}/bots-launch-matrix.XXXXXX")
+active_project=
+active_service=
 
 cleanup() {
-    docker compose rm --force --stop workspace "$1" >/dev/null 2>&1 || true
+    status=$?
+    trap - EXIT HUP INT TERM
+
+    if [ -n "$active_project" ]; then
+        if [ "$status" -ne 0 ]; then
+            log_file="$artifacts_dir/${active_service}.log"
+            docker compose --project-name "$active_project" logs --no-color >"$log_file" 2>&1 || true
+            printf '%s\n' "Captured failure logs in $log_file" >&2
+        fi
+
+        docker compose --project-name "$active_project" down --volumes --remove-orphans >/dev/null 2>&1 || true
+    fi
+
+    exit "$status"
 }
 
-wait_for_splunk() {
-    port=$(port_for "$1")
-    attempt=1
-    while [ "$attempt" -le 120 ]; do
-        if curl --fail --silent --show-error --output /dev/null --max-time 10 "http://localhost:$port/en-US/account/login"; then
-            return 0
-        fi
-        sleep 10
-        attempt=$((attempt + 1))
-    done
-    printf '%s\n' "Timed out waiting for $1 on port $port." >&2
-    return 1
-}
+trap cleanup EXIT HUP INT TERM
 
 for service in bots1 bots2 bots3; do
-    trap 'cleanup "$service"' EXIT HUP INT TERM
+    active_service=$service
+    active_project="bots-launch-${service}-$$"
+    export COMPOSE_PROJECT_NAME=$active_project
 
-    docker compose up --detach "$service"
-    wait_for_splunk "$service"
-    cleanup "$service"
+    docker compose up --wait --wait-timeout 1800 "$service"
+    docker compose down --volumes --remove-orphans
 
     BOTS_SERVICE=$service devcontainer up --workspace-folder "$root"
-    wait_for_splunk "$service"
-    cleanup "$service"
+    docker compose up --wait --wait-timeout 1800 "$service"
+    docker compose down --volumes --remove-orphans
 
-    trap - EXIT HUP INT TERM
+    active_project=
+    active_service=
 done
+
+rmdir "$artifacts_dir"

@@ -1,9 +1,0 @@
-# Use this override only when Docker cannot run the x86-64 Splunk image natively.
-# The scripts/bots-compose wrapper adds it when SPLUNK_PLATFORM=linux/amd64.
-services:
-  bots1:
-    platform: linux/amd64
-  bots2:
-    platform: linux/amd64
-  bots3:
-    platform: linux/amd64

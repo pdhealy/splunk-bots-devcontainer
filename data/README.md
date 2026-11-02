@@ -1,0 +1,1 @@
+To use local BOTS dataset archives (for example, `botsv1-attack-only.tgz`) instead of downloading them at runtime from an online source (for example, `https://s3.amazonaws.com/botsdataset/botsv1/botsv1-attack-only.tgz`), download the files and place them in the `data/` directory.

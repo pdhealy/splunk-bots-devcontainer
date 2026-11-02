@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
-import { execFileSync, existsSync, spawnSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { existsSync, readFileSync } from 'node:fs';
 import test from 'node:test';
 
 const services = {
@@ -9,28 +9,87 @@ const services = {
   bots3: { manifest: 'botsv3', port: '8030', dataset: '/data/botsv3_data_set.tgz' },
 };
 
-const compose = readFileSync('docker-compose.yml', 'utf8');
+const image = 'splunk/splunk@sha256:d4c095d0971fe6054b9b19502019bf54f79c3013726d54ed70e12ad281f5731f';
+const dockerAvailable = spawnSync('docker', ['compose', 'version'], { encoding: 'utf8' }).status === 0;
 
-test('BOTS services share image and platform defaults and use configurable app paths', () => {
-  assert.match(compose, /^x-splunk-defaults: &splunk-defaults\n  image: splunk\/splunk:8\.2\.3\n  platform: "\$\{SPLUNK_PLATFORM:-\}"/m);
+function renderCompose(env = {}) {
+  const result = spawnSync('docker', ['compose', 'config', '--format', 'json'], {
+    encoding: 'utf8',
+    env: { ...process.env, ...env },
+  });
+  assert.equal(result.status, 0, result.stderr);
+  return JSON.parse(result.stdout);
+}
+
+function hasReadOnlyBindMount(config, source, target) {
+  return config.volumes.some((volume) => {
+    if (typeof volume === 'string') {
+      return volume === `${source}:${target}:ro`;
+    }
+
+    return volume.type === 'bind'
+      && volume.source === source
+      && volume.target === target
+      && (volume.read_only === true || volume.readOnly === true);
+  });
+}
+
+function hasPublishedPort(config, published) {
+  return config.ports.some((port) => {
+    if (typeof port === 'string') {
+      return port === `${published}:8000`;
+    }
+
+    return port.target === 8000 && String(port.published) === published;
+  });
+}
+
+function hasEnvFile(config, expectedPath, expectedRequired) {
+  return config.env_file.some((entry) => {
+    if (typeof entry === 'string') {
+      return (entry === expectedPath || entry.endsWith(`/${expectedPath}`)) && expectedRequired !== false;
+    }
+
+    return (entry.path === expectedPath || entry.path.endsWith(`/${expectedPath}`))
+      && entry.required === expectedRequired;
+  });
+}
+
+test('rendered Compose configuration isolates and hardens BOTS services', { skip: !dockerAvailable }, () => {
+  const compose = renderCompose();
+  const amd64Compose = renderCompose({ SPLUNK_PLATFORM: 'linux/amd64' });
 
   for (const [service, { manifest, port, dataset }] of Object.entries(services)) {
-    const section = compose.split(new RegExp(`^  ${service}:`, 'm'))[1].split(/^  \S/m)[0];
-    assert.match(section, /<<: \*splunk-defaults/);
-    assert.match(section, new RegExp(`- config/${manifest}\\.env`));
-    assert.match(section, new RegExp(`- "${port}:8000"`));
-    assert.match(section, new RegExp(`- "\\$\\{BOTS_APPS_ROOT:-\\./apps\\}/${manifest}:/tmp/apps"`));
+    const config = compose.services[service];
+    assert.equal(config.image, image);
+    assert.equal(config.container_name, undefined);
+    assert.deepEqual(config.healthcheck.test, ['CMD-SHELL', '/opt/splunk/bin/splunk status >/dev/null 2>&1']);
+    assert.equal(config.healthcheck.interval, '10s');
+    assert.equal(config.healthcheck.timeout, '5s');
+    assert.equal(config.healthcheck.retries, 120);
+    assert.match(config.healthcheck.start_period, /^1m(?:0s)?$/);
+    assert.ok(hasReadOnlyBindMount(config, `${process.cwd()}/apps/${manifest}`, '/tmp/apps'));
+    assert.ok(hasEnvFile(config, 'config/.env', true));
+    assert.ok(hasEnvFile(config, `config/bots/${manifest}.env`, true));
+    assert.ok(hasPublishedPort(config, port));
+    assert.equal(amd64Compose.services[service].platform, 'linux/amd64');
 
     const appList = readFileSync(`config/bots/${manifest}.env`, 'utf8').trim();
     assert.match(appList, /^SPLUNK_APPS_URL=\/tmp\/apps\//);
     assert.ok(appList.split(',').length > 1, `${manifest} must contain multiple apps`);
 
     if (dataset) {
-      assert.match(section, /- "\.\/data:\/data:ro"/);
+      assert.ok(hasReadOnlyBindMount(config, `${process.cwd()}/data`, '/data'));
       assert.ok(appList.endsWith(dataset), `${manifest} must use a local dataset archive`);
       assert.doesNotMatch(appList, /https?:\/\//);
     }
   }
+});
+
+test('local Splunk configuration is ignored without a template file', () => {
+  assert.match(readFileSync('.gitignore', 'utf8'), /^config\/\.env$/m);
+  assert.match(readFileSync('.gitattributes', 'utf8'), /^config\/\.env export-ignore$/m);
+  assert.equal(existsSync('config/.env.example'), false);
 });
 
 test('Dev Container selects a BOTS service from the local environment', () => {
@@ -60,13 +119,4 @@ test('launch wrappers reject invalid service and platform values', () => {
   });
   assert.equal(invalidPlatform.status, 64);
   assert.match(invalidPlatform.stderr, /Unsupported SPLUNK_PLATFORM/);
-});
-
-const dockerAvailable = spawnSync('docker', ['compose', 'version'], { encoding: 'utf8' }).status === 0;
-test('Docker Compose renders the complete configuration', { skip: !dockerAvailable }, () => {
-  execFileSync('docker', ['compose', 'config', '--quiet'], { stdio: 'inherit' });
-  execFileSync('docker', ['compose', 'config', '--quiet'], {
-    stdio: 'inherit',
-    env: { ...process.env, SPLUNK_PLATFORM: 'linux/amd64' },
-  });
 });

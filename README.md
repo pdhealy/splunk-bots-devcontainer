@@ -21,7 +21,8 @@ passed on the command line.
 BOTSv2 and BOTSv3 also require locally supplied dataset archives in `data/`. Download
 the archive indicated by its dataset guide, verify its published checksum, and save it
 as `data/botsv2_data_set_attack_only.tgz` or `data/botsv3_data_set.tgz`, respectively.
-The archives are bind mounted read-only and are never downloaded by the Splunk container.
+The application and dataset archives are bind mounted read-only and are never downloaded
+by the Splunk container.
 
 The project is configured for one BOTS service at a time. This avoids port, memory, and
 dataset contention. BOTS v1, v2, and v3 are respectively available at ports 8000, 8020,
@@ -75,8 +76,8 @@ SPLUNK_PLATFORM=linux/amd64 docker compose up -d bots3
 
 ### Apple Silicon and other non-amd64 hosts
 
-`splunk/splunk:8.2.3` is an x86-64 image. Native amd64 hosts should leave
-`SPLUNK_PLATFORM` unset. On Apple Silicon, explicitly enable Docker emulation:
+The Splunk image is pinned to a verified x86-64 image digest. Native amd64 hosts should
+leave `SPLUNK_PLATFORM` unset. On Apple Silicon, explicitly enable Docker emulation:
 
 ```sh
 SPLUNK_PLATFORM=linux/amd64 ./scripts/bots-compose bots3 up -d
@@ -84,6 +85,12 @@ SPLUNK_PLATFORM=linux/amd64 BOTS_SERVICE=bots3 ./scripts/devcontainer-up
 ```
 
 For direct Compose usage without the wrapper, use the command above.
+
+### Image updates
+
+The Splunk image is pinned by digest for reproducible builds. Dependabot proposes image
+updates weekly; merge an update only after the CI configuration and Dev Container builds
+pass, then run `./scripts/test-launch-matrix` on an amd64-capable Docker host.
 
 ### Validation
 
@@ -122,13 +129,12 @@ matrix.
   `SPLUNK_PASSWORD`.
 - `config/bots/botsv1.env`, `config/bots/botsv2.env`, and `config/bots/botsv3.env`
   contain the corresponding `SPLUNK_APPS_URL` manifest.
-- `docker-compose.amd64.yml` is the explicit amd64 override used by
-  `scripts/bots-compose`; direct Compose and Dev Container launches use the
-  `SPLUNK_PLATFORM` interpolation in `docker-compose.yml`.
+- `SPLUNK_PLATFORM=linux/amd64` is the only architecture-selection mechanism; it is
+  consumed directly by `docker-compose.yml` for both wrapper and direct launches.
 
 Splunk initialization and BOTS dataset ingestion can take a long time. Wait until the
-selected UI responds before treating startup as failed. Use the wrapper's `logs` command
-to diagnose readiness or ingestion issues.
+selected service reports healthy before treating startup as failed. Use the wrapper's
+`logs` command to diagnose readiness or ingestion issues.
 
 ## BOTSv1
 

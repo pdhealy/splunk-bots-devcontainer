@@ -1,6 +1,12 @@
 x-splunk-defaults: &splunk-defaults
-  image: splunk/splunk:8.2.3
+  image: splunk/splunk@sha256:d4c095d0971fe6054b9b19502019bf54f79c3013726d54ed70e12ad281f5731f
   platform: "${SPLUNK_PLATFORM:-}"
+  healthcheck:
+    test: ["CMD-SHELL", "/opt/splunk/bin/splunk status >/dev/null 2>&1"]
+    interval: 10s
+    timeout: 5s
+    retries: 120
+    start_period: 60s
 
 services:
   workspace:
@@ -15,20 +21,18 @@ services:
 
   bots1:
     <<: *splunk-defaults
-    container_name: bots1
     volumes:
-      - "${BOTS_APPS_ROOT:-./apps}/botsv1:/tmp/apps"
+      - "${BOTS_APPS_ROOT:-./apps}/botsv1:/tmp/apps:ro"
     env_file:
       - config/.env
       - config/bots/botsv1.env
     ports:
-      - "8000:8000"
+      - "8010:8000"
 
   bots2:
     <<: *splunk-defaults
-    container_name: bots2
     volumes:
-      - "${BOTS_APPS_ROOT:-./apps}/botsv2:/tmp/apps"
+      - "${BOTS_APPS_ROOT:-./apps}/botsv2:/tmp/apps:ro"
       - "./data:/data:ro"
     env_file:
       - config/.env
@@ -38,9 +42,8 @@ services:
 
   bots3:
     <<: *splunk-defaults
-    container_name: bots3
     volumes:
-      - "${BOTS_APPS_ROOT:-./apps}/botsv3:/tmp/apps"
+      - "${BOTS_APPS_ROOT:-./apps}/botsv3:/tmp/apps:ro"
       - "./data:/data:ro"
     env_file:
       - config/.env

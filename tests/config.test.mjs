@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { execFileSync, existsSync, spawnSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
@@ -17,7 +17,7 @@ test('BOTS services share image and platform defaults and use configurable app p
   for (const [service, { manifest, port, dataset }] of Object.entries(services)) {
     const section = compose.split(new RegExp(`^  ${service}:`, 'm'))[1].split(/^  \S/m)[0];
     assert.match(section, /<<: \*splunk-defaults/);
-    assert.match(section, new RegExp(`- config/${manifest}\\.env`));
+    assert.match(section, new RegExp(`- config/bots/${manifest}\\.env`));
     assert.match(section, new RegExp(`- "${port}:8000"`));
     assert.match(section, new RegExp(`- "\\$\\{BOTS_APPS_ROOT:-\\./apps\\}/${manifest}:/tmp/apps"`));
 

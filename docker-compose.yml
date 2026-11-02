@@ -20,7 +20,7 @@ services:
       - "${BOTS_APPS_ROOT:-./apps}/botsv1:/tmp/apps"
     env_file:
       - config/.env
-      - config/botsv1.env
+      - config/bots/botsv1.env
     ports:
       - "8000:8000"
 
@@ -32,7 +32,7 @@ services:
       - "./data:/data:ro"
     env_file:
       - config/.env
-      - config/botsv2.env
+      - config/bots/botsv2.env
     ports:
       - "8020:8000"
 
@@ -44,6 +44,6 @@ services:
       - "./data:/data:ro"
     env_file:
       - config/.env
-      - config/botsv3.env
+      - config/bots/botsv3.env
     ports:
       - "8030:8000"

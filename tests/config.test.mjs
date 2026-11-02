@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { execFileSync, spawnSync } from 'node:child_process';
+import { execFileSync, existsSync, spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
@@ -21,7 +21,7 @@ test('BOTS services share image and platform defaults and use configurable app p
     assert.match(section, new RegExp(`- "${port}:8000"`));
     assert.match(section, new RegExp(`- "\\$\\{BOTS_APPS_ROOT:-\\./apps\\}/${manifest}:/tmp/apps"`));
 
-    const appList = readFileSync(`config/${manifest}.env`, 'utf8').trim();
+    const appList = readFileSync(`config/bots/${manifest}.env`, 'utf8').trim();
     assert.match(appList, /^SPLUNK_APPS_URL=\/tmp\/apps\//);
     assert.ok(appList.split(',').length > 1, `${manifest} must contain multiple apps`);
 

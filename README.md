@@ -13,8 +13,10 @@ Happy Hunting!
 ## Launching a BOTS environment
 
 Docker Desktop (or a compatible Docker Engine), Docker Compose v2, and the required
-BOTS application archives are prerequisites. Configure the initial administrator password
-in `config/.env` before starting a service; the username is always `admin`.
+BOTS application archives are prerequisites. Set `SPLUNK_PASSWORD` in `config/.env`
+to a unique local password before starting a service; the username is always `admin`.
+This local file is intentionally untracked, so password updates are never committed or
+passed on the command line.
 
 BOTSv2 and BOTSv3 also require locally supplied dataset archives in `data/`. Download
 the archive indicated by its dataset guide, verify its published checksum, and save it
@@ -116,9 +118,10 @@ matrix.
 
 ### Configuration layout
 
-- `config/.env` contains shared `SPLUNK_START_ARGS` and `SPLUNK_PASSWORD`.
-- `config/botsv1.env`, `config/botsv2.env`, and `config/botsv3.env` contain the
-  corresponding `SPLUNK_APPS_URL` manifest.
+- `config/.env` is an untracked local file containing shared `SPLUNK_START_ARGS` and
+  `SPLUNK_PASSWORD`.
+- `config/bots/botsv1.env`, `config/bots/botsv2.env`, and `config/bots/botsv3.env`
+  contain the corresponding `SPLUNK_APPS_URL` manifest.
 - `docker-compose.amd64.yml` is the explicit amd64 override used by
   `scripts/bots-compose`; direct Compose and Dev Container launches use the
   `SPLUNK_PLATFORM` interpolation in `docker-compose.yml`.
